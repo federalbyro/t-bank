@@ -1,0 +1,186 @@
+openapi: 3.0.3
+info:
+  title: Т-Банк [Блокировка платежей API + БД]
+  description: API для блокировки/разблокировки платежей клиента и проверки статуса.
+  version: "1.0.0"
+  contact:
+    name: Fedor Lobko
+servers:
+  - url: https://service-pay.com
+
+
+components:
+  responses:
+    Conflict:
+      description: Активный блок уже есть
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              code: { type: string }
+          examples:
+            exists: {
+              value: {
+                code: "block_exist"
+              }
+             }
+    NotFound:
+      description: Клиент не найден
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              code: { type: string }
+          examples:
+            exists: {
+              value: {
+                code: "client_not_found"
+              }
+             }
+
+  schemas:
+    BlockStatus:
+        type: object
+        properties:
+          is_active: { type: boolean }
+          type:
+            type: string
+            enum: [fraud, incorrect_requisites, suspicious]
+            nullable: true
+          reason:
+            type: string
+            nullable: true
+          created_at:
+            type: string
+            format: date-time
+            nullable: true
+          released_at:
+            type: string
+            format: date-time
+            nullable: true
+    BlockInfo:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [fraud, incorrect_requisites, suspicious]
+        reason: {type: string}
+    Block:
+      type: object
+      properties:
+        id:        { type: integer }
+        client_id: { type: integer }
+        type:
+          type: string
+          enum: [fraud, incorrect_requisites, suspicious]
+        is_active:   { type: boolean }
+        reason:      { type: string }
+        created_at:
+          type: string
+          format: date-time
+        released_at:
+          type: string
+          format: date-time
+          nullable: true
+      
+
+paths:
+  /client/{client_id}/block:
+    get:
+      tags: [Block]
+      summary: Узнать, заблокирован ли клиент и причину
+      parameters:
+        - in: path
+          name: client_id
+          required: true
+          schema: { type: integer, format: int }
+      responses:
+        '200':
+          description: Запрос выполнен удачно
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BlockStatus'}
+              examples:
+                blocked:
+                  value:
+                    is_active: true
+                    type: fraud
+                    reason: "Too many operations"
+                    created_at: "2025-11-13T10:20:30Z"
+                    released_at: null
+                unblocked:
+                  value:
+                    is_active: false
+                    type: null
+                    reason: null
+                    created_at: null
+                    released_at: null
+        '404': { $ref: '#/components/responses/NotFound' }
+
+    post:
+      tags: [Block]
+      summary: Блокировка платежей конкретного клиента(создаст аудит)
+      parameters:
+        - in: path
+          name: client_id
+          required: true
+          schema: { type: integer}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BlockInfo' }
+            example:
+              type: "incorrect_requisites"
+              reason: "Another bank"
+      responses:
+        '201': 
+          description: Аудит блокировки создан,
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Block' }
+              example:
+                id: 1
+                client_id: 29212321
+                type: incorrect_requisites
+                is_active: true
+                reason: "Another bank"
+                created_at: "2025-11-13T10:20:30Z"
+                released_at: null
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /client/{client_id}/unblock:
+    patch:
+      tags: [Block]
+      summary: Разблокировка клиента
+      parameters:
+        - in: path
+          name: client_id
+          required: true
+          schema: { type: integer, format: int }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+                type: object
+                properties:
+                  is_active: { type: boolean }
+      responses:
+        '200':
+          description: Разблокирован удачно
+          content:
+            application/json:
+              example:
+                code: "unblock"
+        '404': { $ref: '#/components/responses/NotFound' }
+        
+             
+
+
+                
+
